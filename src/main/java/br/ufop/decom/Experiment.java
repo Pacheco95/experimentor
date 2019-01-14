@@ -3,7 +3,6 @@ package br.ufop.decom;
 import javafx.util.Pair;
 import org.apache.log4j.Logger;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -14,18 +13,18 @@ import java.util.regex.Pattern;
 @SuppressWarnings({"unused", "WeakerAccess"})
 public class Experiment {
     private String name;
-    private ArrayList<Task> tasks = new ArrayList<>();
-    private Map<String, String> globalVars = new HashMap<>();
+    private ArrayList<Task> tasks;
+    private Map<String, String> globalVars;
     private static Logger LOGGER = Logger.getLogger(Experiment.class);
 
     public Experiment(String name, ArrayList<Task> tasks) {
         this.name = name;
         this.tasks = tasks;
+        this.globalVars = new HashMap<>();
     }
 
     public Experiment(String name, Task ... tasks) {
-        this.name = name;
-        this.tasks.addAll(Arrays.asList(tasks));
+        this(name, new ArrayList<>(Arrays.asList(tasks)));
     }
 
     public Map<String, String> getGlobalVars() {
@@ -62,15 +61,7 @@ public class Experiment {
         System.err.println();
         LOGGER.info(String.format("Starting experiment \"%s\"", name));
 
-        tasks.forEach(task -> {
-            if (task.getDependencies().isEmpty()) {
-                try {
-                    task.execute();
-                } catch (IOException | InterruptedException e) {
-                    e.printStackTrace();
-                }
-            }
-        });
+        tasks.stream().filter(task -> task.getDependencies().isEmpty()).forEach(Task::execute);
     }
 
     private void registerObservers() {
@@ -89,7 +80,7 @@ public class Experiment {
         System.err.println();
     }
 
-    public void parseGlobalVars() {
+    private void parseGlobalVars() {
         String pattern = "\\$\\((?<var>[a-zA-Z0-9-_]+)\\)";
         Pattern p = Pattern.compile(pattern);
 
@@ -122,6 +113,16 @@ public class Experiment {
     public final Experiment withGlobalVars(Pair<String, String>... vars) {
         for (Pair<String, String> p : vars)
             globalVars.put(p.getKey(), p.getValue());
+        return this;
+    }
+
+    public Experiment withGlobalVars(ArrayList<Pair<String, String>> vars) {
+        vars.forEach(pair -> globalVars.put(pair.getKey(), pair.getValue()));
+        return this;
+    }
+
+    public Experiment withGlobalVars(Map<String, String> globalVars) {
+        this.globalVars = globalVars;
         return this;
     }
 }

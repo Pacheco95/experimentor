@@ -1,0 +1,34 @@
+{
+  "experiment": {
+    "name": "Test",
+    "vars": [
+      {
+        "id": "dir",
+        "value": "/home/michael/IdeaProjects/experimentor/src/main/resources"
+      }
+    ],
+    "tasks": [
+      {
+        "id": "compile",
+        "command": "gcc $(dir)/hello.c -o $(dir)/hello",
+        "dependencies": [],
+        "requirements": {
+          "cores": 1,
+          "ram": 0,
+          "storage": 0,
+          "timeout": 0
+        }
+      }, {
+        "id": "execute",
+        "command": "/bin/sh -c $(dir)/hello",
+        "dependencies": ["compile"],
+        "requirements": {
+          "cores": 1,
+          "ram": 0,
+          "storage": 0,
+          "timeout": 0
+        }
+      }
+    ]
+  }
+}

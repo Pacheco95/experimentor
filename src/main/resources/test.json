@@ -1,0 +1,37 @@
+{
+  "experiment": {
+    "name": "Test",
+    "vars": [
+      {
+        "id": "message",
+        "value": "Hello World!!!"
+      }, {
+        "id": "string",
+        "value": "String test"
+      }
+    ],
+    "tasks": [
+      {
+        "id": "cd",
+        "command": "echo $(string)",
+        "dependencies": [],
+        "requirements": {
+          "cores": 1,
+          "ram": 0,
+          "storage": 0,
+          "timeout": 0
+        }
+      }, {
+        "id": "print",
+        "command": "echo $(message)",
+        "dependencies": ["cd"],
+        "requirements": {
+          "cores": 1,
+          "ram": 0,
+          "storage": 0,
+          "timeout": 0
+        }
+      }
+    ]
+  }
+}

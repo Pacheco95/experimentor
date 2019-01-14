@@ -9,10 +9,14 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-@SuppressWarnings({"WeakerAccess", "unused"})
-public class Task {
+@SuppressWarnings({"unused", "WeakerAccess"})
+public class Task implements Runnable {
     private String id;
     private String command;
+
+    private BufferedReader standardISReader;
+    private BufferedReader errorISReader;
+
     private List<Task> dependencies;
     private Requirements requirements;
     private List<Task> observers;
@@ -27,13 +31,75 @@ public class Task {
         this.observers = new ArrayList<>();
     }
 
+    public void execute() {
+        new Thread(this).start();
+    }
+
+    @Override
+    public void run() {
+        try {
+            LOGGER.info(String.format("Running task: %s=%s", id, command));
+            Process process = Runtime.getRuntime().exec(command);
+            standardISReader = new BufferedReader(new InputStreamReader(process.getInputStream()));
+            errorISReader = new BufferedReader(new InputStreamReader(process.getErrorStream()));
+
+            new Thread(this::listenStandardInputStream).start();
+            new Thread(this::listenErrorInputStream).start();
+
+            // TODO Stop if an error occurs
+
+            process.waitFor();
+
+            LOGGER.info(String.format("Returned code of \"%s\": %d ", id, process.exitValue()));
+            // notify observers
+            observers.forEach(observer -> observer.updateDependency(this));
+        } catch (IOException | InterruptedException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void listenStandardInputStream() {
+        try {
+            String output;
+            while ((output = standardISReader.readLine()) != null) {
+                System.out.println(output);
+                Thread.sleep(50);
+            }
+        } catch (IOException | InterruptedException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void listenErrorInputStream() {
+        try {
+            String output;
+            while ((output = errorISReader.readLine()) != null) {
+                System.err.println(output);
+                Thread.sleep(50);
+            }
+        } catch (IOException | InterruptedException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private synchronized void updateDependency(Task task) {
+        // TODO melhorar esta lógica
+        terminatedDependencies++;
+        if (terminatedDependencies == dependencies.size()) execute();
+    }
+
+    @Override
+    public String toString() {
+        return String.format("id=<%s> command=<%s>", id, command);
+    }
+
+    public void addDependency(Task task) {
+        dependencies.add(task);
+    }
+
     public Task withDependency(Task task) {
         addDependency(task);
         return this;
-    }
-
-    public void addObserver(Task observer) {
-        observers.add(observer);
     }
 
     public Task withDependencies(Task ... tasks) {
@@ -41,13 +107,13 @@ public class Task {
         return this;
     }
 
+    public void addObserver(Task observer) {
+        observers.add(observer);
+    }
+
     public Task withObservers(Task ... observers) {
         this.observers.addAll(Arrays.asList(observers));
         return this;
-    }
-
-    public void addDependency(Task task) {
-        dependencies.add(task);
     }
 
     public Task withRequirements(Requirements requirements) {
@@ -85,45 +151,5 @@ public class Task {
 
     public void setRequirements(Requirements requirements) {
         this.requirements = requirements;
-    }
-
-    public void execute() throws IOException, InterruptedException {
-        // TODO run in a separated threads
-        System.err.println();
-        LOGGER.info(String.format("Executing task %s", id));
-        Process process = Runtime.getRuntime().exec(command);
-        // TODO Check timeout requirement
-        process.waitFor();
-
-        // Check output
-        BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
-        String output;
-        while ((output = reader.readLine()) != null)
-            LOGGER.info("Output:\n" + output);
-
-        // Check errors
-        BufferedReader errors = new BufferedReader(new InputStreamReader(process.getErrorStream()));
-        while ((output = reader.readLine()) != null)
-            LOGGER.info("ERRORS: " + output);
-
-        LOGGER.info("Return code: " + process.exitValue());
-        // notify observers
-        observers.forEach(observer -> observer.updateDependency(this));
-    }
-
-    private synchronized void updateDependency(Task task) {
-        terminatedDependencies++;
-        if (terminatedDependencies == dependencies.size()) {
-            try {
-                execute();
-            } catch (IOException | InterruptedException e) {
-                e.printStackTrace();
-            }
-        }
-    }
-
-    @Override
-    public String toString() {
-        return String.format("id=<%s> command=<%s>", id, command);
     }
 }
