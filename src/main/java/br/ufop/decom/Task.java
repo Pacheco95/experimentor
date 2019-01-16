@@ -1,7 +1,11 @@
 package br.ufop.decom;
 
+import br.ufop.decom.adapter.AdapterDependencyListToArrayList;
+import org.apache.commons.lang3.SystemUtils;
 import org.apache.log4j.Logger;
 
+import javax.xml.bind.annotation.*;
+import javax.xml.bind.annotation.adapters.XmlJavaTypeAdapter;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -10,21 +14,36 @@ import java.util.Arrays;
 import java.util.List;
 
 @SuppressWarnings({"unused", "WeakerAccess"})
+@XmlType(name = "taskType", propOrder = {"taskId", "command", "dependencies", "requirements"})
+@XmlAccessorType(XmlAccessType.NONE)
 public class Task implements Runnable {
-    private String id;
+
+    @XmlAttribute(required = true)
+    @XmlID
+    private String taskId;
+
+    @XmlElement(required = true)
     private String command;
 
     private BufferedReader standardISReader;
     private BufferedReader errorISReader;
 
+    @XmlJavaTypeAdapter(AdapterDependencyListToArrayList.class)
     private List<Task> dependencies;
+
+    @XmlElement
     private Requirements requirements;
+
     private List<Task> observers;
     private static Logger LOGGER = Logger.getLogger(Task.class);
     private int terminatedDependencies;
 
-    public Task(String id, String command) {
-        this.id = id;
+    public Task() {
+        this("Unnamed", "");
+    }
+
+    public Task(String taskId, String command) {
+        this.taskId = taskId;
         this.command = command;
         this.dependencies = new ArrayList<>();
         this.requirements = new Requirements(1, 0, 0, 0);
@@ -36,10 +55,24 @@ public class Task implements Runnable {
     }
 
     @Override
-    public void run() {
+    public synchronized void run() {
         try {
-            LOGGER.info(String.format("Running task: %s=%s", id, command));
-            Process process = Runtime.getRuntime().exec(command);
+            LOGGER.debug(String.format("Running task: <%s>=<%s>", taskId, command));
+
+            String[] cmd = new String[3];
+
+            if (SystemUtils.IS_OS_LINUX) {
+                cmd[0] = "/bin/sh";
+                cmd[1] = "-c";
+            } else if(SystemUtils.IS_OS_WINDOWS) {
+                cmd[0] = "cmd.exe";
+                cmd[1] = "/c";
+            }
+
+            cmd[2] = command;
+
+            Process process = new ProcessBuilder(cmd).start();
+
             standardISReader = new BufferedReader(new InputStreamReader(process.getInputStream()));
             errorISReader = new BufferedReader(new InputStreamReader(process.getErrorStream()));
 
@@ -50,7 +83,10 @@ public class Task implements Runnable {
 
             process.waitFor();
 
-            LOGGER.info(String.format("Returned code of \"%s\": %d ", id, process.exitValue()));
+            synchronized (this) {
+                LOGGER.debug(String.format("Task <%s> terminated! Returned code: %d ", taskId, process.exitValue()));
+            }
+
             // notify observers
             observers.forEach(observer -> observer.updateDependency(this));
         } catch (IOException | InterruptedException e) {
@@ -61,11 +97,8 @@ public class Task implements Runnable {
     private void listenStandardInputStream() {
         try {
             String output;
-            while ((output = standardISReader.readLine()) != null) {
-                System.out.println(output);
-                Thread.sleep(50);
-            }
-        } catch (IOException | InterruptedException e) {
+            while ((output = standardISReader.readLine()) != null) System.out.println("\t" + output);
+        } catch (IOException e) {
             e.printStackTrace();
         }
     }
@@ -73,24 +106,21 @@ public class Task implements Runnable {
     private void listenErrorInputStream() {
         try {
             String output;
-            while ((output = errorISReader.readLine()) != null) {
-                System.err.println(output);
-                Thread.sleep(50);
-            }
-        } catch (IOException | InterruptedException e) {
+            while ((output = errorISReader.readLine()) != null) System.err.println("\t" + output);
+        } catch (IOException e) {
             e.printStackTrace();
         }
     }
 
     private synchronized void updateDependency(Task task) {
-        // TODO melhorar esta lógica
+        // TODO improve logic
         terminatedDependencies++;
         if (terminatedDependencies == dependencies.size()) execute();
     }
 
     @Override
     public String toString() {
-        return String.format("id=<%s> command=<%s>", id, command);
+        return String.format("taskID=<%s> command=<%s>", taskId, command);
     }
 
     public void addDependency(Task task) {
@@ -121,12 +151,12 @@ public class Task implements Runnable {
         return this;
     }
 
-    public String getId() {
-        return id;
+    public String getTaskId() {
+        return taskId;
     }
 
-    public void setId(String id) {
-        this.id = id;
+    public void setTaskId(String taskId) {
+        this.taskId = taskId;
     }
 
     public String getCommand() {

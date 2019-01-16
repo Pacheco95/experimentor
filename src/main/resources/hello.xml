@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+
+<experiment xmlns="http://www.decom.ufop.br"
+            xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+            xsi:schemaLocation="http://www.decom.ufop.br schemagen/schema1.xsd"
+            experimentId="ExperimentTest">
+  <tasks>
+    <task taskId="print_message">
+      <command>echo Hello World!</command>
+    </task>
+  </tasks>
+</experiment>

@@ -1,50 +1,108 @@
 package br.ufop.decom;
 
+import br.ufop.decom.adapter.AdapterVarListToMap;
 import javafx.util.Pair;
 import org.apache.log4j.Logger;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.Map;
+import javax.xml.bind.JAXBContext;
+import javax.xml.bind.JAXBException;
+import javax.xml.bind.Marshaller;
+import javax.xml.bind.Unmarshaller;
+import javax.xml.bind.annotation.*;
+import javax.xml.bind.annotation.adapters.XmlJavaTypeAdapter;
+import java.io.File;
+import java.io.StringWriter;
+import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-@SuppressWarnings({"unused", "WeakerAccess"})
+@SuppressWarnings({"unused", "UnusedReturnValue"})
+@XmlRootElement
+@XmlType(name = "experimentType", propOrder = {"experimentId", "vars", "tasks"})
+@XmlAccessorType(XmlAccessType.NONE)
 public class Experiment {
-    private String name;
-    private ArrayList<Task> tasks;
-    private Map<String, String> globalVars;
+
+    @XmlAttribute(required = true)
+    @XmlID
+    private String experimentId;
+
+    @XmlElementWrapper(required = true)
+    @XmlElement(name = "task")
+    private List<Task> tasks;
+
+    @XmlJavaTypeAdapter(AdapterVarListToMap.class)
+    private Map<String, String> vars;
+
     private static Logger LOGGER = Logger.getLogger(Experiment.class);
 
-    public Experiment(String name, ArrayList<Task> tasks) {
-        this.name = name;
+    public Experiment() {
+        this("Unnamed", new ArrayList<>());
+    }
+
+    public Experiment(String experimentId, ArrayList<Task> tasks) {
+        this.experimentId = experimentId;
         this.tasks = tasks;
-        this.globalVars = new HashMap<>();
+        this.vars = new HashMap<>();
     }
 
-    public Experiment(String name, Task ... tasks) {
-        this(name, new ArrayList<>(Arrays.asList(tasks)));
+    public Experiment(String experimentId, Task ... tasks) {
+        this(experimentId, new ArrayList<>(Arrays.asList(tasks)));
     }
 
-    public Map<String, String> getGlobalVars() {
-        return globalVars;
+    public static Experiment loadFromFile(File configurationFile) throws JAXBException {
+        JAXBContext context = JAXBContext.newInstance(Experiment.class);
+        Unmarshaller unmarshaller = context.createUnmarshaller();
+        return  (Experiment) unmarshaller.unmarshal(configurationFile);
     }
 
-    public String getName() {
-        return name;
+    public String getExperimentId() {
+        return experimentId;
     }
 
-    public void setName(String name) {
-        this.name = name;
+    public void setExperimentId(String experimentId) {
+        this.experimentId = experimentId;
     }
 
-    public ArrayList<Task> getTasks() {
+    public List<Task> getTasks() {
         return tasks;
     }
 
-    public void setTasks(ArrayList<Task> tasks) {
+    public void setTasks(List<Task> tasks) {
         this.tasks = tasks;
+    }
+
+    public Map<String, String> getVars() {
+        return vars;
+    }
+
+    public void setVars(Map<String, String> vars) {
+        this.vars = vars;
+    }
+
+    @SafeVarargs
+    public final Experiment withGlobalVars(Pair<String, String>... vars) {
+        for (Pair<String, String> p : vars)
+            this.vars.put(p.getKey(), p.getValue());
+        return this;
+    }
+
+    public Experiment withGlobalVars(ArrayList<Pair<String, String>> vars) {
+        vars.forEach(pair -> this.vars.put(pair.getKey(), pair.getValue()));
+        return this;
+    }
+
+    public Experiment withGlobalVars(Map<String, String> globalVars) {
+        this.vars = globalVars;
+        return this;
+    }
+
+    public void execute() {
+        parseGlobalVars();
+        registerObservers();
+        LOGGER.debug(String.format("Starting experiment \"%s\"...", experimentId));
+        tasks.stream().parallel().filter(task -> task.getDependencies().isEmpty()).forEach(Task::execute);
+
+        new Scanner(System.in).nextLine();
     }
 
     /**
@@ -53,48 +111,31 @@ public class Experiment {
      *         Add T as a observer to D
      * 2. Start every tasks with no dependencies
      * */
-    public void execute() {
-        parseGlobalVars();
-        showInfo();
-        registerObservers();
-
-        System.err.println();
-        LOGGER.info(String.format("Starting experiment \"%s\"", name));
-
-        tasks.stream().filter(task -> task.getDependencies().isEmpty()).forEach(Task::execute);
-    }
-
     private void registerObservers() {
         tasks.forEach(task -> task.getDependencies().forEach(dependency -> {
-            String message = String.format("Adding task \"%s\" as an observer to task \"%s\".", task.getId(), dependency.getId());
-            LOGGER.info(message);
+            String message = String.format("Registering task \"%s\" as an observer to task \"%s\".", task.getTaskId(), dependency.getTaskId());
+            LOGGER.debug(message);
             dependency.addObserver(task);
         }));
-    }
-
-    private void showInfo() {
-        LOGGER.info("Experiment name: " + name + "\n");
-        globalVars.forEach((key, value) -> LOGGER.info(String.format("Global var:\n\tname: %s\n\tvalue: %s", key, value)));
-        System.err.println();
-        tasks.forEach(task -> LOGGER.info(String.format("Task:\n\tid: %s\n\tcommand: %s", task.getId(), task.getCommand())));
-        System.err.println();
     }
 
     private void parseGlobalVars() {
         String pattern = "\\$\\((?<var>[a-zA-Z0-9-_]+)\\)";
         Pattern p = Pattern.compile(pattern);
 
-        globalVars.forEach((id, value) -> {
+        vars.forEach((id, value) -> {
             StringBuilder command = new StringBuilder(value);
             Matcher m = p.matcher(command);
             buildString(p, command, m);
-            globalVars.put(id, command.toString());
+            vars.put(id, command.toString());
+            LOGGER.debug(String.format("Parsing var <%s>: <%s> -> <%s>", id, value, command.toString()));
         });
 
         tasks.forEach(task -> {
             StringBuilder command = new StringBuilder(task.getCommand());
             Matcher m = p.matcher(command);
             buildString(p, command, m);
+            LOGGER.debug(String.format("Parsing task <%s>: <%s> -> <%s>", task.getTaskId(), task.getCommand(), command.toString()));
             task.setCommand(command.toString());
         });
     }
@@ -102,27 +143,27 @@ public class Experiment {
     private void buildString(Pattern p, StringBuilder command, Matcher m) {
         while (m.find()) {
             String var = m.group("var");
-            if (!globalVars.containsKey(var))
+            if (!vars.containsKey(var))
                 LOGGER.fatal(String.format("Global var \"%s\" does not exists.", var));
-            command.replace(m.start(), m.end(), globalVars.get(var));
+            command.replace(m.start(), m.end(), vars.get(var));
             m = p.matcher(command);
         }
     }
 
-    @SafeVarargs
-    public final Experiment withGlobalVars(Pair<String, String>... vars) {
-        for (Pair<String, String> p : vars)
-            globalVars.put(p.getKey(), p.getValue());
-        return this;
-    }
+    @Override
+    public String toString() {
+        String result = "";
+        try {
+            JAXBContext context = JAXBContext.newInstance(Experiment.class);
+            Marshaller marshaller = context.createMarshaller();
+            marshaller.setProperty(Marshaller.JAXB_FORMATTED_OUTPUT, Boolean.TRUE);
+            StringWriter sw = new StringWriter();
+            marshaller.marshal(this, sw);
+            result = sw.toString();
+        } catch (JAXBException e) {
+            e.printStackTrace();
+        }
 
-    public Experiment withGlobalVars(ArrayList<Pair<String, String>> vars) {
-        vars.forEach(pair -> globalVars.put(pair.getKey(), pair.getValue()));
-        return this;
-    }
-
-    public Experiment withGlobalVars(Map<String, String> globalVars) {
-        this.globalVars = globalVars;
-        return this;
+        return result;
     }
 }

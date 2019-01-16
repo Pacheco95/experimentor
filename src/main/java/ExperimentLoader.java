@@ -1,5 +1,6 @@
-package br.ufop.decom;
-
+import br.ufop.decom.Experiment;
+import br.ufop.decom.Requirements;
+import br.ufop.decom.Task;
 import com.jayway.jsonpath.Configuration;
 import com.jayway.jsonpath.JsonPath;
 import net.minidev.json.JSONArray;
@@ -13,10 +14,11 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
+@SuppressWarnings("ALL")
 public class ExperimentLoader {
 
     @SuppressWarnings("SuspiciousMethodCalls")
-    public static Experiment loadFromFile(File filePath) throws Exception {
+    public static Experiment loadFromJSONFile(File filePath) throws Exception {
 
         String jsonString = new String(Files.readAllBytes(Paths.get(filePath.toURI())), Charset.forName("UTF-8"));
         Object parsedJson = Configuration.defaultConfiguration().jsonProvider().parse(jsonString);
@@ -30,7 +32,7 @@ public class ExperimentLoader {
 
         vars.forEach(v -> {
             LinkedHashMap var = (LinkedHashMap) v;
-            String id = (String) var.get("id");
+            String id = (String) var.get("varID");
             String value = (String) var.get("value");
             globalVars.put(id, value);
         });
@@ -41,7 +43,7 @@ public class ExperimentLoader {
 
         tasks.forEach(t -> {
             LinkedHashMap task = (LinkedHashMap) t;
-            String id = (String) task.get("id");
+            String id = (String) task.get("varID");
             String command = (String) task.get("command");
 
             int cores = (int) ((Map) task.get("requirements")).get("cores");
@@ -54,13 +56,13 @@ public class ExperimentLoader {
 
             tasksHMap.put(id, newTask);
 
-            //String query = String.format("$.experiment.tasks[?(@.id == '%s')]", id);
+            //String query = String.format("$.experiment.tasks[?(@.varID == '%s')]", varID);
         });
 
         // Assign dependencies
         tasks.forEach(t -> {
             LinkedHashMap task = (LinkedHashMap) t;
-            Task current = tasksHMap.get(task.get("id"));
+            Task current = tasksHMap.get(task.get("varID"));
 
             JSONArray dependencies = (JSONArray) task.get("dependencies");
 
@@ -75,4 +77,5 @@ public class ExperimentLoader {
 
         return experiment;
     }
+
 }

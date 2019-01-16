@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+
+<experiment xmlns="http://www.decom.ufop.br"
+            xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+            xsi:schemaLocation="http://www.decom.ufop.br schemagen/schema1.xsd"
+            experimentId="ExperimentTest">
+
+  <vars>
+    <var varId="srcdir">~/library</var>
+    <var varId="builddir">~/library/build</var>
+  </vars>
+  <tasks>
+    <task taskId="clean">
+      <command>rm -rf $(builddir)/*</command>
+    </task>
+    <task taskId="compile_util">
+      <command>gcc -Wall -c $(srcdir)/util.c -o $(builddir)/util.o</command>
+      <dependencies>
+        <dependency taskIdRef="clean"/>
+      </dependencies>
+    </task>
+    <task taskId="compile_main">
+      <command>gcc -Wall -c $(srcdir)/main.c -o $(builddir)/main.o</command>
+      <dependencies>
+        <dependency taskIdRef="clean"/>
+      </dependencies>
+    </task>
+    <task taskId="mklib">
+      <command>ar -cvq $(builddir)/libpstr.a $(builddir)/*.o</command>
+      <dependencies>
+        <dependency taskIdRef="compile_util"/>
+        <dependency taskIdRef="compile_main"/>
+      </dependencies>
+    </task>
+    <task taskId="makeapp">
+      <command>gcc $(builddir)/*.o -o $(builddir)/application -L $(builddir) -lpstr</command>
+      <dependencies>
+        <dependency taskIdRef="mklib"/>
+      </dependencies>
+    </task>
+    <task taskId="execute">
+      <command>$(builddir)/application</command>
+      <dependencies>
+        <dependency taskIdRef="makeapp"/>
+      </dependencies>
+    </task>
+  </tasks>
+</experiment>
