@@ -13,6 +13,7 @@ import javax.xml.bind.annotation.adapters.XmlJavaTypeAdapter;
 import java.io.File;
 import java.io.StringWriter;
 import java.util.*;
+import java.util.concurrent.CountDownLatch;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -100,9 +101,16 @@ public class Experiment {
         parseGlobalVars();
         registerObservers();
         LOGGER.debug(String.format("Starting experiment \"%s\"...", experimentId));
-        tasks.stream().parallel().filter(task -> task.getDependencies().isEmpty()).forEach(Task::execute);
 
-        new Scanner(System.in).nextLine();
+        CountDownLatch latch = new CountDownLatch(tasks.size());
+        tasks.parallelStream().forEach(task -> task.setCountDownLatch(latch));
+        tasks.parallelStream().filter(task -> task.getDependencies().isEmpty()).forEach(Task::execute);
+
+        try {
+            latch.await();
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
     }
 
     /**

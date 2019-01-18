@@ -12,6 +12,7 @@ import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
 
 @SuppressWarnings({"unused", "WeakerAccess"})
 @XmlType(name = "taskType", propOrder = {"taskId", "command", "dependencies", "requirements"})
@@ -36,7 +37,7 @@ public class Task implements Runnable {
 
     private List<Task> observers;
     private static Logger LOGGER = Logger.getLogger(Task.class);
-    private int terminatedDependencies;
+    private CountDownLatch experimentCountDownLatch;
 
     public Task() {
         this("Unnamed", "");
@@ -83,12 +84,13 @@ public class Task implements Runnable {
 
             process.waitFor();
 
-            synchronized (this) {
-                LOGGER.debug(String.format("Task <%s> terminated! Returned code: %d ", taskId, process.exitValue()));
-            }
+            LOGGER.debug(String.format("Task <%s> terminated! Returned code: %d", taskId, process.exitValue()));
 
             // notify observers
             observers.forEach(observer -> observer.updateDependency(this));
+
+            // notify the experiment
+            experimentCountDownLatch.countDown();
         } catch (IOException | InterruptedException e) {
             e.printStackTrace();
         }
@@ -113,9 +115,9 @@ public class Task implements Runnable {
     }
 
     private synchronized void updateDependency(Task task) {
-        // TODO improve logic
-        terminatedDependencies++;
-        if (terminatedDependencies == dependencies.size()) execute();
+        dependencies.remove(task);
+        if (dependencies.isEmpty())
+            execute();
     }
 
     @Override
@@ -181,5 +183,9 @@ public class Task implements Runnable {
 
     public void setRequirements(Requirements requirements) {
         this.requirements = requirements;
+    }
+
+    public void setCountDownLatch(CountDownLatch latch) {
+        this.experimentCountDownLatch = latch;
     }
 }
