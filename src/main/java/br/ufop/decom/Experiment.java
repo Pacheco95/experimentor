@@ -1,7 +1,8 @@
 package br.ufop.decom;
 
 import br.ufop.decom.adapter.AdapterVarListToMap;
-import javafx.util.Pair;
+import lombok.Getter;
+import lombok.Setter;
 import org.apache.log4j.Logger;
 
 import javax.xml.bind.JAXBContext;
@@ -17,7 +18,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-@SuppressWarnings({"unused", "UnusedReturnValue"})
 @XmlRootElement
 @XmlType(name = "experimentType", propOrder = {"experimentId", "vars", "tasks"})
 @XmlAccessorType(XmlAccessType.NONE)
@@ -25,10 +25,12 @@ public class Experiment {
 
     @XmlAttribute(required = true)
     @XmlID
+    @Getter @Setter
     private String experimentId;
 
     @XmlElementWrapper(required = true)
     @XmlElement(name = "task")
+    @Getter @Setter
     private List<Task> tasks;
 
     @XmlJavaTypeAdapter(AdapterVarListToMap.class)
@@ -51,50 +53,10 @@ public class Experiment {
     }
 
     public static Experiment loadFromFile(File configurationFile) throws JAXBException {
+        LOGGER.debug(String.format("Unmarshalling \"%s\"", configurationFile.getAbsolutePath()));
         JAXBContext context = JAXBContext.newInstance(Experiment.class);
         Unmarshaller unmarshaller = context.createUnmarshaller();
         return  (Experiment) unmarshaller.unmarshal(configurationFile);
-    }
-
-    public String getExperimentId() {
-        return experimentId;
-    }
-
-    public void setExperimentId(String experimentId) {
-        this.experimentId = experimentId;
-    }
-
-    public List<Task> getTasks() {
-        return tasks;
-    }
-
-    public void setTasks(List<Task> tasks) {
-        this.tasks = tasks;
-    }
-
-    public Map<String, String> getVars() {
-        return vars;
-    }
-
-    public void setVars(Map<String, String> vars) {
-        this.vars = vars;
-    }
-
-    @SafeVarargs
-    public final Experiment withGlobalVars(Pair<String, String>... vars) {
-        for (Pair<String, String> p : vars)
-            this.vars.put(p.getKey(), p.getValue());
-        return this;
-    }
-
-    public Experiment withGlobalVars(ArrayList<Pair<String, String>> vars) {
-        vars.forEach(pair -> this.vars.put(pair.getKey(), pair.getValue()));
-        return this;
-    }
-
-    public Experiment withGlobalVars(Map<String, String> globalVars) {
-        this.vars = globalVars;
-        return this;
     }
 
     public void execute() {
@@ -128,50 +90,53 @@ public class Experiment {
     }
 
     private void parseGlobalVars() {
-        String pattern = "\\$\\((?<var>[a-zA-Z0-9-_]+)\\)";
-        Pattern p = Pattern.compile(pattern);
+        Pattern pattern = Pattern.compile("\\$\\((?<var>[a-zA-Z0-9-_]+)\\)");
 
-        vars.forEach((id, value) -> {
-            StringBuilder command = new StringBuilder(value);
-            Matcher m = p.matcher(command);
-            buildString(p, command, m);
-            vars.put(id, command.toString());
-            LOGGER.debug(String.format("Parsing var <%s>: <%s> -> <%s>", id, value, command.toString()));
+        vars.forEach((varID, oldVarValue) -> {
+            String newValue = replace(pattern, oldVarValue);
+            vars.put(varID, newValue);
+            LOGGER.debug(String.format("Parsing var <%s>: <%s> -> <%s>", varID, oldVarValue, newValue));
         });
 
         tasks.forEach(task -> {
-            StringBuilder command = new StringBuilder(task.getCommand());
-            Matcher m = p.matcher(command);
-            buildString(p, command, m);
-            LOGGER.debug(String.format("Parsing task <%s>: <%s> -> <%s>", task.getTaskId(), task.getCommand(), command.toString()));
-            task.setCommand(command.toString());
+            String newCommand = replace(pattern, task.getCommand());
+            LOGGER.debug(String.format("Parsing task <%s>: <%s> -> <%s>", task.getTaskId(), task.getCommand(), newCommand));
+            task.setCommand(newCommand);
         });
     }
 
-    private void buildString(Pattern p, StringBuilder command, Matcher m) {
-        while (m.find()) {
-            String var = m.group("var");
+    /**
+     * Replaces all occurrences of {@code pattern} in {@code toReplace} to the current content of {@code pattern} in {@code vars} map.
+     * */
+    private String replace(Pattern pattern, String toReplace) {
+        Matcher matcher = pattern.matcher(toReplace);
+
+        StringBuilder newValue = new StringBuilder(toReplace);
+
+        while (matcher.find()) {
+            String var = matcher.group("var");
             if (!vars.containsKey(var))
                 LOGGER.fatal(String.format("Global var \"%s\" does not exists.", var));
-            command.replace(m.start(), m.end(), vars.get(var));
-            m = p.matcher(command);
+            newValue.replace(matcher.start(), matcher.end(), vars.get(var));
+            // Lookup for new $(var) occurrences
+            matcher = pattern.matcher(newValue);
         }
+        return newValue.toString();
     }
 
     @Override
     public String toString() {
-        String result = "";
         try {
             JAXBContext context = JAXBContext.newInstance(Experiment.class);
             Marshaller marshaller = context.createMarshaller();
             marshaller.setProperty(Marshaller.JAXB_FORMATTED_OUTPUT, Boolean.TRUE);
             StringWriter sw = new StringWriter();
             marshaller.marshal(this, sw);
-            result = sw.toString();
+            return sw.toString();
         } catch (JAXBException e) {
             e.printStackTrace();
         }
 
-        return result;
+        return null;
     }
 }
