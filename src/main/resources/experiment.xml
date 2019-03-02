@@ -6,8 +6,9 @@
             experimentId="ExperimentTest">
 
   <vars>
-    <var varId="srcdir">~/library</var>
-    <var varId="builddir">~/library/build</var>
+    <var varId="homedir">/home/michael</var>
+    <var varId="srcdir">$(homedir)/library</var>
+    <var varId="builddir">$(homedir)/library/build</var>
   </vars>
   <tasks>
     <task taskId="clean">

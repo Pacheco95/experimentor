@@ -1,6 +1,8 @@
 package br.ufop.decom;
 
 import br.ufop.decom.adapter.AdapterDependencyListToArrayList;
+import lombok.Getter;
+import lombok.Setter;
 import org.apache.commons.lang3.SystemUtils;
 import org.apache.log4j.Logger;
 
@@ -21,22 +23,31 @@ public class Task implements Runnable {
 
     @XmlAttribute(required = true)
     @XmlID
+    @Getter @Setter
     private String taskId;
 
     @XmlElement(required = true)
+    @Getter @Setter
     private String command;
 
+    /** Listen task standard output */
     private BufferedReader standardISReader;
+    /** Listen task error output */
     private BufferedReader errorISReader;
 
     @XmlJavaTypeAdapter(AdapterDependencyListToArrayList.class)
+    @Getter @Setter
     private List<Task> dependencies;
 
     @XmlElement
+    @Getter @Setter
     private Requirements requirements;
 
+    /** List of tasks waiting this task to end */
+    @Getter @Setter
     private List<Task> observers;
     private static Logger LOGGER = Logger.getLogger(Task.class);
+    @Getter @Setter
     private CountDownLatch experimentCountDownLatch;
 
     public Task() {
@@ -51,6 +62,7 @@ public class Task implements Runnable {
         this.observers = new ArrayList<>();
     }
 
+    @SuppressWarnings("WeakerAccess")
     public void execute() {
         new Thread(this).start();
     }
@@ -87,7 +99,7 @@ public class Task implements Runnable {
             LOGGER.debug(String.format("Task <%s> terminated! Returned code: %d", taskId, process.exitValue()));
 
             // notify observers
-            observers.forEach(observer -> observer.updateDependency(this));
+            observers.forEach(observer -> observer.removeDependency(this));
 
             // notify the experiment
             experimentCountDownLatch.countDown();
@@ -114,7 +126,7 @@ public class Task implements Runnable {
         }
     }
 
-    private synchronized void updateDependency(Task task) {
+    private synchronized void removeDependency(Task task) {
         dependencies.remove(task);
         if (dependencies.isEmpty())
             execute();
@@ -151,38 +163,6 @@ public class Task implements Runnable {
     public Task withRequirements(Requirements requirements) {
         setRequirements(requirements);
         return this;
-    }
-
-    public String getTaskId() {
-        return taskId;
-    }
-
-    public void setTaskId(String taskId) {
-        this.taskId = taskId;
-    }
-
-    public String getCommand() {
-        return command;
-    }
-
-    public void setCommand(String command) {
-        this.command = command;
-    }
-
-    public List<Task> getDependencies() {
-        return dependencies;
-    }
-
-    public void setDependencies(List<Task> dependencies) {
-        this.dependencies = dependencies;
-    }
-
-    public Requirements getRequirements() {
-        return requirements;
-    }
-
-    public void setRequirements(Requirements requirements) {
-        this.requirements = requirements;
     }
 
     public void setCountDownLatch(CountDownLatch latch) {

@@ -13,7 +13,12 @@ public class Application {
         }
 
         try {
-            Experiment.loadFromFile(new File(args[0])).execute();
+            File file = new File(args[0]);
+            if(!file.exists()) {
+                System.err.println(String.format("File \"%s\" does not exists", file.getAbsolutePath()));
+                System.exit(1);
+            }
+            Experiment.loadFromFile(file).execute();
         } catch (JAXBException e) {
             e.printStackTrace();
         }

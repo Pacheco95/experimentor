@@ -1,5 +1,8 @@
 package br.ufop.decom;
 
+import lombok.Getter;
+import lombok.Setter;
+
 import javax.xml.bind.annotation.XmlAccessType;
 import javax.xml.bind.annotation.XmlAccessorType;
 import javax.xml.bind.annotation.XmlElement;
@@ -10,15 +13,19 @@ import javax.xml.bind.annotation.XmlType;
 @XmlAccessorType(XmlAccessType.NONE)
 public class Requirements {
     @XmlElement
+    @Getter @Setter
     private int cores;
 
     @XmlElement
+    @Getter @Setter
     private int ram;
 
     @XmlElement
+    @Getter @Setter
     private int storage;
 
     @XmlElement
+    @Getter @Setter
     private long timeout;
 
     public Requirements() {
@@ -29,38 +36,6 @@ public class Requirements {
         this.cores = cores;
         this.ram = ram;
         this.storage = storage;
-        this.timeout = timeout;
-    }
-
-    public int getCores() {
-        return cores;
-    }
-
-    public void setCores(int cores) {
-        this.cores = cores;
-    }
-
-    public int getRam() {
-        return ram;
-    }
-
-    public void setRam(int ram) {
-        this.ram = ram;
-    }
-
-    public int getStorage() {
-        return storage;
-    }
-
-    public void setStorage(int storage) {
-        this.storage = storage;
-    }
-
-    public long getTimeout() {
-        return timeout;
-    }
-
-    public void setTimeout(long timeout) {
         this.timeout = timeout;
     }
 }
